@@ -3,8 +3,28 @@ package blockchain
 import (
 	"fmt"
 	"github.com/hyperledger/fabric-sdk-go/pkg/client/channel"
+	"github.com/hyperledger/fabric-sdk-go/pkg/common/providers/fab"
 	"time"
 )
+
+func regitserEvent(client *channel.Client, chaincodeID, eventID string) (fab.Registration, <-chan *fab.CCEvent) {
+
+	reg, notifier, err := client.RegisterChaincodeEvent(chaincodeID, eventID)
+	if err != nil {
+		fmt.Println("注册链码事件失败: %s", err)
+	}
+	return reg, notifier
+}
+
+func eventResult(notifier <-chan *fab.CCEvent, eventID string) error {
+	select {
+	case ccEvent := <-notifier:
+		fmt.Printf("接收到链码事件: %v\n", ccEvent)
+	case <-time.After(time.Second * 20):
+		return fmt.Errorf("不能根据指定的事件ID接收到相应的链码事件(%s)", eventID)
+	}
+	return nil
+}
 
 // 注册管理员
 func (setup *FabricSetup) InitLedger() (string, error) {
@@ -13,20 +33,15 @@ func (setup *FabricSetup) InitLedger() (string, error) {
 	var args []string
 	args = append(args, "initLedger")
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
+	eventID := "tokenInvoke"
+	reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
 	if err != nil {
 		return "", err
 	}
-	defer setup.event.Unregister(reg)
+	defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
@@ -50,31 +65,26 @@ func (setup *FabricSetup) CreateAccount(value string) (string, error) {
 	args = append(args, "createAccount")
 	args = append(args, value)
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
@@ -91,31 +101,26 @@ func (setup *FabricSetup) InitCurrency(value []string) (string, error) {
 	args = append(args, value[3])
 	args = append(args, value[4])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3]), []byte(args[4]), []byte(args[5])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3]), []byte(args[4]), []byte(args[5])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
@@ -130,31 +135,26 @@ func (setup *FabricSetup) SetLock(value []string) (string, error) {
 	args = append(args, value[1])
 	args = append(args, value[2])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
@@ -170,31 +170,26 @@ func (setup *FabricSetup) TransferToken(value []string) (string, error) {
 	args = append(args, value[2])
 	args = append(args, value[3])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3]), []byte(args[4])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3]), []byte(args[4])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
@@ -209,31 +204,26 @@ func (setup *FabricSetup) FrozenAccount(value []string) (string, error) {
 	args = append(args, value[1])
 	args = append(args, value[2])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
@@ -248,31 +238,26 @@ func (setup *FabricSetup) MintToken(value []string) (string, error) {
 	args = append(args, value[1])
 	args = append(args, value[2])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
@@ -288,214 +273,104 @@ func (setup *FabricSetup) BurnToken(value []string) (string, error) {
 	args = append(args, value[2])
 	args = append(args, value[3])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	//eventID := "tokenInvoke"
+	//reg, notifier, err := setup.event[1].RegisterChaincodeEvent(setup.ChainCodeID[1], eventID)
+	//if err != nil {
+	//	return "", err
+	//}
+	//defer setup.event[1].Unregister(reg)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3]), []byte(args[4])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2]), []byte(args[3]), []byte(args[4])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
 
 	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
+	//select {
+	//case ccEvent := <-notifier:
+	//	fmt.Printf("Received CC event: %s\n", ccEvent)
+	//case <-time.After(time.Second * 20):
+	//	return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
+	//}
 
 	return string(response.Payload), nil
 }
 
 //查询指定账户指定代币 (1)查询账户 （2） 代币名称
-func (setup *FabricSetup) balance(value []string) (string, error) {
+func (setup *FabricSetup) Balance(value []string) (string, error) {
 
 	// Prepare arguments
 	var args []string
-	args = append(args, "Balance")
+	args = append(args, "balance")
 	args = append(args, value[0])
 	args = append(args, value[1])
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
-
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1]), []byte(args[2])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
-
-	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
-
 	return string(response.Payload), nil
 }
 
 //查询某个用户所有资金 (1)账户名
-func (setup *FabricSetup) BalanceAll(value []string) (string, error) {
+func (setup *FabricSetup) BalanceAll(value string) (string, error) {
 
 	// Prepare arguments
 	var args []string
 	args = append(args, "balanceAll")
-	args = append(args, value[0])
-
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	args = append(args, value)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
-
-	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
-
 	return string(response.Payload), nil
 }
 
 //查看某个账户(1)账户名
-func (setup *FabricSetup) ShowAccount(value []string) (string, error) {
+func (setup *FabricSetup) ShowAccount(value string) (string, error) {
 
 	// Prepare arguments
 	var args []string
 	args = append(args, "showAccount")
-	args = append(args, value[0])
+	args = append(args, value)
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
-
-	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{[]byte(args[1])}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
-
-	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
-
 	return string(response.Payload), nil
 }
 
 //查看所有代币
-func (setup *FabricSetup) ShowToken(value []string) (string, error) {
+func (setup *FabricSetup) ShowToken() (string, error) {
 
 	// Prepare arguments
 	var args []string
 	args = append(args, "showToken")
 
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
-
-	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
 	}
-
-	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
-	}
-
 	return string(response.Payload), nil
 }
 
-//查看代币的所有持有用户
-func (setup *FabricSetup) ShowTokenUser(value []string) (string, error) {
+//查看代币的所有持有用户 (1)代币名
+func (setup *FabricSetup) ShowTokenUser(value string) (string, error) {
 
 	// Prepare arguments
 	var args []string
 	args = append(args, "showTokenUser")
-
-	eventID := "eventInvoke"
-
-	// Add data that will be visible in the proposal, like a description of the invoke request
-	transientDataMap := make(map[string][]byte)
-	transientDataMap["result"] = []byte("Transient data in hello invoke")
-
-	reg, notifier, err := setup.event.RegisterChaincodeEvent(setup.ChainCodeID, eventID)
-	if err != nil {
-		return "", err
-	}
-	defer setup.event.Unregister(reg)
+	args = append(args, value)
 
 	// Create a request (proposal) and send it
-	response, err := setup.client.Execute(channel.Request{ChaincodeID: setup.ChainCodeID, Fcn: args[0], Args: [][]byte{}, TransientMap: transientDataMap})
+	response, err := setup.client[1].Execute(channel.Request{ChaincodeID: setup.ChainCodeID[1], Fcn: args[0], Args: [][]byte{[]byte(args[1])}})
 	if err != nil {
 		return "", fmt.Errorf("failed to move funds: %v", err)
-	}
-
-	// Wait for the result of the submission
-	select {
-	case ccEvent := <-notifier:
-		fmt.Printf("Received CC event: %s\n", ccEvent)
-	case <-time.After(time.Second * 20):
-		return "", fmt.Errorf("did NOT receive CC event for eventId(%s)", eventID)
 	}
 
 	return string(response.Payload), nil
