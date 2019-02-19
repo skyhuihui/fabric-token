@@ -9,25 +9,25 @@ import (
 	pb "github.com/hyperledger/fabric/protos/peer"
 )
 
-type Msg struct{
-	Status 	bool	`json:"Status"`
-	Code 	int		`json:"Code"`
-	Message string	`json:"Message"`
+type Msg struct {
+	Status  bool   `json:"Status"`
+	Code    int    `json:"Code"`
+	Message string `json:"Message"`
 }
 
-type Currency struct{
-	Lock		bool	`json:"Lock"`
-	TokenName 		string	`json:"TokenName"`
-	TokenSymbol 	string	`json:"TokenSymbol"`
-	TotalSupply 	float64	`json:"TotalSupply"`
-	User 	map[string]float64	`json:"User"`
+type Currency struct {
+	Lock        bool               `json:"Lock"`
+	TokenName   string             `json:"TokenName"`
+	TokenSymbol string             `json:"TokenSymbol"`
+	TotalSupply float64            `json:"TotalSupply"`
+	User        map[string]float64 `json:"User"`
 }
 
 type Token struct {
-	Currency	map[string]Currency	`json:"Currency"`
+	Currency map[string]Currency `json:"Currency"`
 }
 
-func (token *Token) transfer (_from *Account, _to *Account, _currency string, _value float64) []byte{
+func (token *Token) transfer(_from *Account, _to *Account, _currency string, _value float64) []byte {
 
 	var rev []byte
 	if token.Currency[_currency].Lock {
@@ -55,24 +55,24 @@ func (token *Token) transfer (_from *Account, _to *Account, _currency string, _v
 		_to.BalanceOf[_currency] += _value
 		cur := token.Currency[_currency]
 		cur.User[_from.Name] -= _value
-		if cur.User[_to.Name] == 0{
+		if cur.User[_to.Name] == 0 {
 			cur.User[_to.Name] = _value
-		}else {
+		} else {
 			cur.User[_to.Name] += _value
 		}
 		token.Currency[_currency] = cur
 		msg := &Msg{Status: true, Code: 0, Message: "转账成功"}
 		rev, _ = json.Marshal(msg)
 		return rev
-	}else{
+	} else {
 		msg := &Msg{Status: false, Code: 0, Message: "余额不足"}
 		rev, _ = json.Marshal(msg)
 		return rev
 	}
 
 }
-func (token *Token) initialSupply(_name string, _symbol string, _supply float64, _account *Account, lock bool) []byte{
-	if _,ok := token.Currency[_symbol]; ok {
+func (token *Token) initialSupply(_name string, _symbol string, _supply float64, _account *Account, lock bool) []byte {
+	if _, ok := token.Currency[_symbol]; ok {
 		msg := &Msg{Status: false, Code: 0, Message: "代币已经存在"}
 		rev, _ := json.Marshal(msg)
 		return rev
@@ -82,10 +82,10 @@ func (token *Token) initialSupply(_name string, _symbol string, _supply float64,
 		msg := &Msg{Status: false, Code: 0, Message: "账号中存在代币"}
 		rev, _ := json.Marshal(msg)
 		return rev
-	}else{
+	} else {
 		user := make(map[string]float64)
 		user[_account.Name] = _supply
-		token.Currency[_symbol] = Currency{TokenName: _name, TokenSymbol: _symbol, TotalSupply: _supply, Lock:lock, User:user}
+		token.Currency[_symbol] = Currency{TokenName: _name, TokenSymbol: _symbol, TotalSupply: _supply, Lock: lock, User: user}
 		_account.BalanceOf[_symbol] = _supply
 
 		msg := &Msg{Status: true, Code: 0, Message: "代币初始化成功"}
@@ -95,24 +95,24 @@ func (token *Token) initialSupply(_name string, _symbol string, _supply float64,
 
 }
 
-func (token *Token) mint(_currency string, _amount float64, _account *Account) []byte{
-	if(!token.isCurrency(_currency)){
+func (token *Token) mint(_currency string, _amount float64, _account *Account) []byte {
+	if !token.isCurrency(_currency) {
 		msg := &Msg{Status: false, Code: 0, Message: "货币符号不存在"}
 		rev, _ := json.Marshal(msg)
 		return rev
 	}
 	cur := token.Currency[_currency]
-	cur.TotalSupply += _amount;
+	cur.TotalSupply += _amount
 	cur.User[_account.Name] += _amount
 	token.Currency[_currency] = cur
-	_account.BalanceOf[_currency] += _amount;
+	_account.BalanceOf[_currency] += _amount
 
 	msg := &Msg{Status: true, Code: 0, Message: "代币增发成功"}
 	rev, _ := json.Marshal(msg)
 	return rev
 
 }
-func (token *Token) burn(_currency string, _amount float64, _account *Account) []byte{
+func (token *Token) burn(_currency string, _amount float64, _account *Account) []byte {
 	if !token.isCurrency(_currency) {
 		msg := &Msg{Status: false, Code: 0, Message: "货币符号不存在"}
 		rev, _ := json.Marshal(msg)
@@ -120,15 +120,15 @@ func (token *Token) burn(_currency string, _amount float64, _account *Account) [
 	}
 	if _account.BalanceOf[_currency] >= _amount {
 		cur := token.Currency[_currency]
-		cur.TotalSupply -= _amount;
+		cur.TotalSupply -= _amount
 		cur.User[_account.Name] -= _amount
 		token.Currency[_currency] = cur
-		_account.BalanceOf[_currency] -= _amount;
+		_account.BalanceOf[_currency] -= _amount
 
 		msg := &Msg{Status: false, Code: 0, Message: "代币回收成功"}
 		rev, _ := json.Marshal(msg)
 		return rev
-	}else{
+	} else {
 		msg := &Msg{Status: false, Code: 0, Message: "代币回收失败，回收额度不足"}
 		rev, _ := json.Marshal(msg)
 		return rev
@@ -138,27 +138,29 @@ func (token *Token) burn(_currency string, _amount float64, _account *Account) [
 func (token *Token) isCurrency(_currency string) bool {
 	if _, ok := token.Currency[_currency]; ok {
 		return true
-	}else{
+	} else {
 		return false
 	}
 }
 func (token *Token) setLock(_currency string, _look bool) bool {
 	cur := token.Currency[_currency]
-	cur.Lock = _look;
+	cur.Lock = _look
 	token.Currency[_currency] = cur
 	return token.Currency[_currency].Lock
 }
+
 type Account struct {
-	Name			string	`json:"Name"`
-	Frozen			bool	`json:"Frozen"`
-	BalanceOf		map[string]float64	`json:"BalanceOf"`
+	Name      string             `json:"Name"`
+	Frozen    bool               `json:"Frozen"`
+	BalanceOf map[string]float64 `json:"BalanceOf"`
 }
-func (account *Account) balance (_currency string) map[string]float64{
-	bal	:= map[string]float64{_currency:account.BalanceOf[_currency]}
+
+func (account *Account) balance(_currency string) map[string]float64 {
+	bal := map[string]float64{_currency: account.BalanceOf[_currency]}
 	return bal
 }
 
-func (account *Account) balanceAll() map[string]float64{
+func (account *Account) balanceAll() map[string]float64 {
 	return account.BalanceOf
 }
 
@@ -168,7 +170,6 @@ const Admin = "Admin"
 
 // Define the Smart Contract structure
 type SmartContract struct {
-
 }
 
 func (s *SmartContract) Init(stub shim.ChaincodeStubInterface) pb.Response {
@@ -179,8 +180,12 @@ func (s *SmartContract) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	err = stub.PutState(TokenKey, tokenAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Init Token %s \n", string(tokenAsBytes))
+	}
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
 	}
 	return shim.Success(nil)
 }
@@ -197,7 +202,7 @@ func (s *SmartContract) Query(stub shim.ChaincodeStubInterface) pb.Response {
 	return shim.Error("Invalid Smart Contract function name.")
 }
 
-func (s *SmartContract) Invoke(stub shim.ChaincodeStubInterface) pb.Response { 
+func (s *SmartContract) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 
 	// Retrieve the requested Smart Contract function and arguments
 	function, args := stub.GetFunctionAndParameters()
@@ -237,7 +242,7 @@ func (s *SmartContract) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		//代币销毁 (1)代币名称(2)回收数量(3)回收的账户（回收谁的代币）(4)操作人
 		//peer chaincode invoke -C myc -n token -c '{"function":"burnToken","Args":["NKC","5000","123","skyhuihui"]}'
 		return s.burnToken(stub, args)
-	}else if function == "balance" {
+	} else if function == "balance" {
 		//查询指定账户指定代币 (1)查询账户 （2） 代币名称
 		//peer chaincode invoke -C myc -n token -c '{"function":"balance","Args":["skyhuihui","NKC"]}'
 		return s.balance(stub, args)
@@ -253,12 +258,11 @@ func (s *SmartContract) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		//查看所有代币
 		//peer chaincode invoke -C myc -n token -c '{"function":"showToken","Args":[]}'
 		return s.showToken(stub, args)
-	}else if function == "showTokenUser" {
-		//查看代币的所有持有用户
+	} else if function == "showTokenUser" {
+		//查看代币的所有持有用户 （1）代币名
 		//peer chaincode invoke -C myc -n token -c '{"function":"showTokenUser","Args":["ada"]}'
 		return s.showTokenUser(stub, args)
 	}
-
 
 	return shim.Error("Invalid Smart Contract function name.")
 }
@@ -269,9 +273,9 @@ func (s *SmartContract) createAccount(stub shim.ChaincodeStubInterface, args []s
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
 
-	key  := args[0]
-	name  := args[0]
-	existAsBytes,err := stub.GetState(key)
+	key := args[0]
+	name := args[0]
+	existAsBytes, err := stub.GetState(key)
 	fmt.Printf("GetState(%s) %s \n", key, string(existAsBytes))
 	if string(existAsBytes) != "" {
 		fmt.Println("Failed to create account, Duplicate key.")
@@ -279,8 +283,8 @@ func (s *SmartContract) createAccount(stub shim.ChaincodeStubInterface, args []s
 	}
 
 	account := Account{
-		Name: name,
-		Frozen: false,
+		Name:      name,
+		Frozen:    false,
 		BalanceOf: map[string]float64{}}
 
 	accountAsBytes, _ := json.Marshal(account)
@@ -290,12 +294,16 @@ func (s *SmartContract) createAccount(stub shim.ChaincodeStubInterface, args []s
 	}
 	fmt.Printf("createAccount %s \n", string(accountAsBytes))
 
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	return shim.Success(accountAsBytes)
 }
 func (s *SmartContract) initLedger(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	key  := "skyhuihui"
-	name  := "skyhuihui"
-	existAsBytes,err := stub.GetState(Admin)
+	key := "skyhuihui"
+	name := "skyhuihui"
+	existAsBytes, err := stub.GetState(Admin)
 	fmt.Printf("GetState(%s) %s \n", key, string(existAsBytes))
 	if string(existAsBytes) != "" {
 		fmt.Println("Failed to create account, Duplicate key.")
@@ -303,8 +311,8 @@ func (s *SmartContract) initLedger(stub shim.ChaincodeStubInterface, args []stri
 	}
 
 	account := Account{
-		Name: name,
-		Frozen: false,
+		Name:      name,
+		Frozen:    false,
 		BalanceOf: map[string]float64{}}
 
 	accountAsBytes, _ := json.Marshal(account)
@@ -314,16 +322,20 @@ func (s *SmartContract) initLedger(stub shim.ChaincodeStubInterface, args []stri
 	if err != nil {
 		return shim.Error(err.Error())
 	}
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	fmt.Printf("createAccount %s \n", string(accountAsBytes))
 
 	return shim.Success(accountAsBytes)
 }
 
 func (s *SmartContract) showToken(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	tokenAsBytes,err := stub.GetState(TokenKey)
+	tokenAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("GetState(%s)) %s \n", TokenKey, string(tokenAsBytes))
 	}
 	return shim.Success(tokenAsBytes)
@@ -334,19 +346,19 @@ func (s *SmartContract) showTokenUser(stub shim.ChaincodeStubInterface, args []s
 	if len(args) != 1 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
-	_token 	:= args[0]
+	_token := args[0]
 	token := Token{}
-	existAsBytes,err := stub.GetState(TokenKey)
+	existAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("GetState(%s)) %s \n", TokenKey, string(existAsBytes))
 	}
 	json.Unmarshal(existAsBytes, &token)
 	reToekn, err := json.Marshal(token.Currency[_token])
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Account balance %s \n", string(reToekn))
 	}
 	return shim.Success(reToekn)
@@ -356,7 +368,7 @@ func (s *SmartContract) initCurrency(stub shim.ChaincodeStubInterface, args []st
 	if len(args) != 5 {
 		return shim.Error("Incorrect number of arguments. Expecting 4")
 	}
-	admin,err := stub.GetState(Admin)
+	admin, err := stub.GetState(Admin)
 	if admin == nil {
 		return shim.Error("The administrator account is empty")
 	}
@@ -364,13 +376,13 @@ func (s *SmartContract) initCurrency(stub shim.ChaincodeStubInterface, args []st
 	if string(account) != string(admin) {
 		return shim.Error("Current account is not an admin account")
 	}
-	_name  := args[0]
-	_symbol:= args[1]
-	_supply,_:= strconv.ParseFloat(args[2], 64)
+	_name := args[0]
+	_symbol := args[1]
+	_supply, _ := strconv.ParseFloat(args[2], 64)
 	_account := args[3]
 	lock := args[4]
 
-	coinbaseAsBytes,err := stub.GetState(_account)
+	coinbaseAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -381,25 +393,25 @@ func (s *SmartContract) initCurrency(stub shim.ChaincodeStubInterface, args []st
 	json.Unmarshal(coinbaseAsBytes, &coinbase)
 
 	token := Token{}
-	existAsBytes,err := stub.GetState(TokenKey)
+	existAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("GetState(%s)) %s \n", TokenKey, string(existAsBytes))
 	}
 	json.Unmarshal(existAsBytes, &token)
 	var blog bool
-	if lock == "false"{
+	if lock == "false" {
 		blog = false
-	}else{
+	} else {
 		blog = true
 	}
-	result := token.initialSupply(_name,_symbol,_supply, coinbase, blog)
+	result := token.initialSupply(_name, _symbol, _supply, coinbase, blog)
 	tokenAsBytes, _ := json.Marshal(token)
 	err = stub.PutState(TokenKey, tokenAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Init Token %s \n", string(tokenAsBytes))
 	}
 
@@ -410,26 +422,28 @@ func (s *SmartContract) initCurrency(stub shim.ChaincodeStubInterface, args []st
 	}
 	fmt.Printf("Coinbase after %s \n", string(coinbaseAsBytes))
 
-
-
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	return shim.Success(result)
 }
 
 func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
-		if len(args) != 4 {
+	if len(args) != 4 {
 		return shim.Error("Incorrect number of arguments. Expecting 4")
 	}
-		_from 		:= args[0]
-		_to			:= args[1]
-		_currency 	:= args[2]
-		_amount,_	:= strconv.ParseFloat(args[3], 32)
+	_from := args[0]
+	_to := args[1]
+	_currency := args[2]
+	_amount, _ := strconv.ParseFloat(args[3], 32)
 
-		if(_amount <= 0){
+	if _amount <= 0 {
 		return shim.Error("Incorrect number of amount")
 	}
 
-	fromAsBytes,err := stub.GetState(_from)
+	fromAsBytes, err := stub.GetState(_from)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -437,7 +451,7 @@ func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []s
 	fromAccount := &Account{}
 	json.Unmarshal(fromAsBytes, &fromAccount)
 
-	toAsBytes,err := stub.GetState(_to)
+	toAsBytes, err := stub.GetState(_to)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -445,7 +459,7 @@ func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []s
 	toAccount := &Account{}
 	json.Unmarshal(toAsBytes, &toAccount)
 
-	tokenAsBytes,err := stub.GetState(TokenKey)
+	tokenAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -473,7 +487,7 @@ func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []s
 	err = stub.PutState(_from, fromAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("fromAccount %s \n", string(fromAsBytes))
 	}
 
@@ -484,8 +498,13 @@ func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []s
 	err = stub.PutState(_to, toAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("toAccount %s \n", string(toAsBytes))
+	}
+
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
 	}
 
 	return shim.Success(result)
@@ -495,7 +514,7 @@ func (s *SmartContract) mintToken(stub shim.ChaincodeStubInterface, args []strin
 	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 3")
 	}
-	admin,err := stub.GetState(Admin)
+	admin, err := stub.GetState(Admin)
 	if admin == nil {
 		return shim.Error("The administrator account is empty")
 	}
@@ -504,21 +523,21 @@ func (s *SmartContract) mintToken(stub shim.ChaincodeStubInterface, args []strin
 		return shim.Error("Current account is not an admin account")
 	}
 
-	_currency 	:= args[0]
-	_amount,_	:= strconv.ParseFloat(args[1], 32)
-	_account	:= args[2]
+	_currency := args[0]
+	_amount, _ := strconv.ParseFloat(args[1], 32)
+	_account := args[2]
 
-	coinbaseAsBytes,err := stub.GetState(_account)
+	coinbaseAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Coinbase before %s \n", string(coinbaseAsBytes))
 	}
 
 	coinbase := &Account{}
 	json.Unmarshal(coinbaseAsBytes, &coinbase)
 
-	tokenAsBytes,err := stub.GetState(TokenKey)
+	tokenAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -544,12 +563,16 @@ func (s *SmartContract) mintToken(stub shim.ChaincodeStubInterface, args []strin
 	err = stub.PutState(_account, coinbaseAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Coinbase after %s \n", string(coinbaseAsBytes))
 	}
 
 	fmt.Printf("mintToken %s \n", string(tokenAsBytes))
 
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	return shim.Success(result)
 }
 
@@ -558,7 +581,7 @@ func (s *SmartContract) burnToken(stub shim.ChaincodeStubInterface, args []strin
 	if len(args) != 4 {
 		return shim.Error("Incorrect number of arguments. Expecting 4")
 	}
-	admin,err := stub.GetState(Admin)
+	admin, err := stub.GetState(Admin)
 	if admin == nil {
 		return shim.Error("The administrator account is empty")
 	}
@@ -567,21 +590,21 @@ func (s *SmartContract) burnToken(stub shim.ChaincodeStubInterface, args []strin
 		return shim.Error("Current account is not an admin account")
 	}
 
-	_currency 	:= args[0]
-	_amount,_	:= strconv.ParseFloat(args[1], 32)
-	_account	:= args[2]
+	_currency := args[0]
+	_amount, _ := strconv.ParseFloat(args[1], 32)
+	_account := args[2]
 
-	coinbaseAsBytes,err := stub.GetState(_account)
+	coinbaseAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Coinbase before %s \n", string(coinbaseAsBytes))
 	}
 
 	coinbase := &Account{}
 	json.Unmarshal(coinbaseAsBytes, &coinbase)
 
-	tokenAsBytes,err := stub.GetState(TokenKey)
+	tokenAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -607,12 +630,15 @@ func (s *SmartContract) burnToken(stub shim.ChaincodeStubInterface, args []strin
 	err = stub.PutState(_account, coinbaseAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Coinbase after %s \n", string(coinbaseAsBytes))
 	}
 
 	fmt.Printf("mintToken %s \n", string(tokenAsBytes))
-
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	return shim.Success(result)
 }
 
@@ -621,7 +647,7 @@ func (s *SmartContract) setLock(stub shim.ChaincodeStubInterface, args []string)
 	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
-	admin,err := stub.GetState(Admin)
+	admin, err := stub.GetState(Admin)
 	if admin == nil {
 		return shim.Error("The administrator account is empty")
 	}
@@ -632,7 +658,7 @@ func (s *SmartContract) setLock(stub shim.ChaincodeStubInterface, args []string)
 	_currency := args[0]
 	_look := args[1]
 
-	tokenAsBytes,err := stub.GetState(TokenKey)
+	tokenAsBytes, err := stub.GetState(TokenKey)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -644,7 +670,7 @@ func (s *SmartContract) setLock(stub shim.ChaincodeStubInterface, args []string)
 
 	if _look == "true" {
 		token.setLock(_currency, true)
-	}else{
+	} else {
 		token.setLock(_currency, false)
 	}
 
@@ -657,7 +683,10 @@ func (s *SmartContract) setLock(stub shim.ChaincodeStubInterface, args []string)
 		return shim.Error(err.Error())
 	}
 	fmt.Printf("setLock - end %s \n", string(tokenAsBytes))
-
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	return shim.Success(nil)
 }
 func (s *SmartContract) frozenAccount(stub shim.ChaincodeStubInterface, args []string) pb.Response {
@@ -665,7 +694,7 @@ func (s *SmartContract) frozenAccount(stub shim.ChaincodeStubInterface, args []s
 	if len(args) != 3 {
 		return shim.Error("Incorrect number of arguments. Expecting 2")
 	}
-	admin,err := stub.GetState(Admin)
+	admin, err := stub.GetState(Admin)
 	if admin == nil {
 		return shim.Error("The administrator account is empty")
 	}
@@ -674,10 +703,10 @@ func (s *SmartContract) frozenAccount(stub shim.ChaincodeStubInterface, args []s
 		return shim.Error("Current account is not an admin account")
 	}
 
-	_account	:= args[0]
-	_status		:= args[1]
+	_account := args[0]
+	_status := args[1]
 
-	accountAsBytes,err := stub.GetState(_account)
+	accountAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
 	}
@@ -688,9 +717,9 @@ func (s *SmartContract) frozenAccount(stub shim.ChaincodeStubInterface, args []s
 	json.Unmarshal(accountAsBytes, &account)
 
 	var status bool
-	if(_status == "true"){
-		status = true;
-	}else{
+	if _status == "true" {
+		status = true
+	} else {
 		status = false
 	}
 
@@ -703,10 +732,13 @@ func (s *SmartContract) frozenAccount(stub shim.ChaincodeStubInterface, args []s
 	err = stub.PutState(_account, accountAsBytes)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("frozenAccount - end %s \n", string(accountAsBytes))
 	}
-
+	err = stub.SetEvent("tokenInvoke", []byte{})
+	if err != nil {
+		return shim.Error(err.Error())
+	}
 	return shim.Success(nil)
 }
 
@@ -715,12 +747,12 @@ func (s *SmartContract) showAccount(stub shim.ChaincodeStubInterface, args []str
 	if len(args) != 1 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
-	_account 	:= args[0]
+	_account := args[0]
 
-	accountAsBytes,err := stub.GetState(_account)
+	accountAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Account balance %s \n", string(accountAsBytes))
 	}
 	return shim.Success(accountAsBytes)
@@ -731,13 +763,13 @@ func (s *SmartContract) balance(stub shim.ChaincodeStubInterface, args []string)
 	if len(args) != 2 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
-	_account 	:= args[0]
-	_currency 	:= args[1]
+	_account := args[0]
+	_currency := args[1]
 
-	accountAsBytes,err := stub.GetState(_account)
+	accountAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Account balance %s \n", string(accountAsBytes))
 	}
 
@@ -756,12 +788,12 @@ func (s *SmartContract) balanceAll(stub shim.ChaincodeStubInterface, args []stri
 	if len(args) != 1 {
 		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
-	_account 	:= args[0]
+	_account := args[0]
 
-	accountAsBytes,err := stub.GetState(_account)
+	accountAsBytes, err := stub.GetState(_account)
 	if err != nil {
 		return shim.Error(err.Error())
-	}else{
+	} else {
 		fmt.Printf("Account balance %s \n", string(accountAsBytes))
 	}
 
