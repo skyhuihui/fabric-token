@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	pb "github.com/hyperledger/fabric/protos/peer"
@@ -15,12 +17,20 @@ type Msg struct {
 	Message string `json:"Message"`
 }
 
+type TransactionRecord struct {
+	From   string  `json:"From"`
+	To     string  `json:"To"`
+	Amount float64 `json:"Amount"`
+	TxId   string  `json:"TxId"`
+}
+
 type Currency struct {
-	Lock        bool               `json:"Lock"`
-	TokenName   string             `json:"TokenName"`
-	TokenSymbol string             `json:"TokenSymbol"`
-	TotalSupply float64            `json:"TotalSupply"`
-	User        map[string]float64 `json:"User"`
+	Lock        bool                `json:"Lock"`
+	TokenName   string              `json:"TokenName"`
+	TokenSymbol string              `json:"TokenSymbol"`
+	TotalSupply float64             `json:"TotalSupply"`
+	User        map[string]float64  `json:"User"`
+	Record      []TransactionRecord `json:"Record"`
 }
 
 type Token struct {
@@ -53,14 +63,10 @@ func (token *Token) transfer(_from *Account, _to *Account, _currency string, _va
 	if _from.BalanceOf[_currency] >= _value {
 		_from.BalanceOf[_currency] -= _value
 		_to.BalanceOf[_currency] += _value
-		cur := token.Currency[_currency]
-		cur.User[_from.Name] -= _value
-		if cur.User[_to.Name] == 0 {
-			cur.User[_to.Name] = _value
-		} else {
-			cur.User[_to.Name] += _value
-		}
-		token.Currency[_currency] = cur
+
+		token.Currency[_currency].User[_from.Name] = _from.BalanceOf[_currency]
+		token.Currency[_currency].User[_to.Name] = _to.BalanceOf[_currency]
+
 		msg := &Msg{Status: true, Code: 0, Message: "转账成功"}
 		rev, _ = json.Marshal(msg)
 		return rev
@@ -93,6 +99,29 @@ func (token *Token) initialSupply(_name string, _symbol string, _supply float64,
 		return rev
 	}
 
+}
+
+//添加转账记录
+func (token *Token) installRecord(_from string, _to string, _currency string, _value float64, txId string) []byte {
+
+	var curr Currency
+
+	record := TransactionRecord{_from, _to, _value, txId}
+	recordList := make([]TransactionRecord, 0)
+
+	recordList = append(token.Currency[_currency].Record, record)
+	curr.Record = recordList
+	curr.User = token.Currency[_currency].User
+	curr.Lock = token.Currency[_currency].Lock
+	curr.TokenName = token.Currency[_currency].TokenName
+	curr.TokenSymbol = token.Currency[_currency].TokenSymbol
+	curr.TotalSupply = token.Currency[_currency].TotalSupply
+
+	token.Currency[_currency] = curr
+
+	msg := &Msg{Status: true, Code: 0, Message: "添加转账记录成功"}
+	rev, _ := json.Marshal(msg)
+	return rev
 }
 
 func (token *Token) mint(_currency string, _amount float64, _account *Account) []byte {
@@ -246,6 +275,18 @@ func (s *SmartContract) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		//查询指定账户指定代币 (1)查询账户 （2） 代币名称
 		//peer chaincode invoke -C myc -n token -c '{"function":"balance","Args":["skyhuihui","NKC"]}'
 		return s.balance(stub, args)
+	} else if function == "tokenHistory" {
+		//查询指定代币交易记录 (1)代币名称
+		//peer chaincode invoke -C myc -n token -c '{"function":"tokenHistory","Args":["NKC"]}'
+		return s.tokenHistory(stub, args)
+	} else if function == "userTokenHistory" {
+		//查询指定用户指定代币交易记录 (1)代币名称(2)用户名
+		//peer chaincode invoke -C myc -n token -c '{"function":"userTokenHistory","Args":["NKC","skyhuihui"]}'
+		return s.userTokenHistory(stub, args)
+	} else if function == "getHistoryKey" {
+		//查询某个key 历史交易 (1)代币名称
+		//peer chaincode invoke -C myc -n token -c '{"function":"tokenHistory","Args":["NKC"]}'
+		return s.getHistoryForKey(stub, args)
 	} else if function == "balanceAll" {
 		//查询某个用户所有资金 (1)账户名
 		//peer chaincode invoke -C myc -n token -c '{"function":"balanceAll","Args":["skyhuihui"]}'
@@ -480,6 +521,26 @@ func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []s
 	}
 	fmt.Printf("Token after %s \n", string(tokenAsBytes))
 
+	existAsBytes, err := stub.GetState(TokenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	} else {
+		fmt.Printf("GetState(%s)) %s \n", TokenKey, string(existAsBytes))
+	}
+	json.Unmarshal(existAsBytes, &token)
+
+	msg := Msg{}
+	json.Unmarshal(result, &msg)
+	if msg.Status == true {
+		result = token.installRecord(fromAccount.Name, toAccount.Name, _currency, _amount, stub.GetTxID())
+		fmt.Printf("Result %s \n", string(result))
+		tokenAsBytes, _ = json.Marshal(token)
+		err = stub.PutState(TokenKey, tokenAsBytes)
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+	}
+
 	fromAsBytes, err = json.Marshal(fromAccount)
 	if err != nil {
 		return shim.Error(err.Error())
@@ -506,9 +567,9 @@ func (s *SmartContract) transferToken(stub shim.ChaincodeStubInterface, args []s
 	if err != nil {
 		return shim.Error(err.Error())
 	}
-
 	return shim.Success(result)
 }
+
 func (s *SmartContract) mintToken(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 
 	if len(args) != 3 {
@@ -740,6 +801,112 @@ func (s *SmartContract) frozenAccount(stub shim.ChaincodeStubInterface, args []s
 		return shim.Error(err.Error())
 	}
 	return shim.Success(nil)
+}
+
+//获取代币交易记录
+func (s *SmartContract) tokenHistory(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+	_currency := args[0]
+
+	tokenAsBytes, err := stub.GetState(TokenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	token := Token{}
+	json.Unmarshal(tokenAsBytes, &token)
+	resultAsBytes, _ := json.Marshal(token.Currency[_currency].Record)
+
+	fmt.Printf("Token Record %s \n", string(resultAsBytes))
+	return shim.Success(resultAsBytes)
+}
+
+//获取某个用户某个代币交易记录
+func (s *SmartContract) userTokenHistory(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+
+	if len(args) != 2 {
+		return shim.Error("Incorrect number of arguments. Expecting 2")
+	}
+	_currency := args[0]
+	_account := args[1]
+
+	tokenAsBytes, err := stub.GetState(TokenKey)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+	token := Token{}
+	json.Unmarshal(tokenAsBytes, &token)
+
+	var userRecord []TransactionRecord
+	index := 0
+	for k, v := range token.Currency[_currency].Record {
+		if token.Currency[_currency].Record[k].From == _account || token.Currency[_currency].Record[k].To == _account {
+			userRecord = append(userRecord, v)
+			index++
+		}
+	}
+
+	resultAsBytes, _ := json.Marshal(userRecord)
+	fmt.Printf("Token Record %s \n", string(resultAsBytes))
+	return shim.Success(resultAsBytes)
+}
+
+func (s *SmartContract) getHistoryForKey(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
+	}
+
+	marbleId := args[0]
+
+	// 返回某个键的所有历史值
+	resultsIterator, err := stub.GetHistoryForKey(marbleId)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	defer resultsIterator.Close()
+
+	var buffer bytes.Buffer
+	buffer.WriteString("[")
+
+	bArrayMemberAlreadyWritten := false
+	for resultsIterator.HasNext() {
+		queryResult, err := resultsIterator.Next()
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+
+		if bArrayMemberAlreadyWritten == true {
+			buffer.WriteString(",")
+		}
+
+		buffer.WriteString("{\"TxId\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(queryResult.TxId)
+		buffer.WriteString("\"")
+
+		buffer.WriteString(", \"Timestamp\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(time.Unix(queryResult.Timestamp.Seconds, int64(queryResult.Timestamp.Nanos)).String())
+		buffer.WriteString("\"")
+
+		buffer.WriteString("{\"Value\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(string(queryResult.Value))
+		buffer.WriteString("\"")
+
+		buffer.WriteString("{\"IsDelete\":")
+		buffer.WriteString("\"")
+		buffer.WriteString(strconv.FormatBool(queryResult.IsDelete))
+		buffer.WriteString("\"")
+
+		bArrayMemberAlreadyWritten = true
+	}
+	buffer.WriteString("]")
+	fmt.Printf("- getMarblesByRange queryResult:\n%s\n", buffer.String())
+	return shim.Success(buffer.Bytes())
 }
 
 func (s *SmartContract) showAccount(stub shim.ChaincodeStubInterface, args []string) pb.Response {

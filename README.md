@@ -41,6 +41,13 @@
 //查询某个用户所有资金 (1)账户名
 //peer chaincode invoke -C myc -n token -c '{"function":"balanceAll","Args":["skyhuihui"]}'
 
+//查询指定代币交易记录 (1)代币名称
+//peer chaincode invoke -C myc -n token -c '{"function":"tokenHistory","Args":["NKC"]}'
+//查询指定用户指定代币交易记录 (1)代币名称(2)用户名
+//peer chaincode invoke -C myc -n token -c '{"function":"userTokenHistory","Args":["NKC","skyhuihui"]}'
+//查询某个key 历史交易 (1)代币名称
+//peer chaincode invoke -C myc -n token -c '{"function":"tokenHistory","Args":["NKC"]}'
+
 //查看某个账户(1)账户名
 //peer chaincode invoke -C myc -n token -c '{"function":"showAccount","Args":["skyhuihui"]}'
 
